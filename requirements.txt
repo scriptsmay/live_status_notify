@@ -1,0 +1,10 @@
+# 核心请求与异步环境
+httpx[http2]>=0.28.1
+requests>=2.31.0
+
+# 日志
+loguru>=0.7.3
+
+# 平台解密与JS执行 (抖音/B站/虎牙等爬虫必须)
+pycryptodome>=3.20.0
+PyExecJS>=1.5.1

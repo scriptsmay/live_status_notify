@@ -1,0 +1,11 @@
+services:
+  live-status-notify:
+    build: .
+    container_name: live-status-notify
+    restart: always
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./backup_config:/app/backup_config
+    environment:
+      - TZ=Asia/Shanghai
