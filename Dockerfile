@@ -23,13 +23,18 @@ RUN apt-get update && \
     apt-get install -y nodejs
 
 # 设置时区
-RUN apt-get update && \
-    apt-get install -y tzdata && \
-    ln -fs /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
-    dpkg-reconfigure -f noninteractive tzdata
-
-    RUN pip install --no-cache-dir -r requirements.txt
-
-COPY config/config.example.ini /app/config.ini
+# 安装必要的系统依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tzdata \
+    ca-certificates \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --upgrade pip \
+    # 先安装 distro，再安装其他依赖
+    && pip install --no-cache-dir distro \
+    && pip install --no-cache-dir -r requirements.txt \
+    && rm -rf /root/.cache/pip
 
 CMD ["python", "main.py"]
