@@ -6,8 +6,9 @@ import os
 import sys
 import re
 from typing import Any, Dict, List, Optional, Tuple, Set
-from src import spider
+from src import spider, stream
 from src.utils import logger
+from src import utils
 from msg_push import (
     dingtalk, xizhi, tg_bot, send_email, bark, ntfy, pushplus, gotify, feishubot
 )
@@ -16,6 +17,9 @@ from msg_push import (
 CONFIG_FILE = 'config/config.ini'
 URL_CONFIG_FILE = 'config/URL_config.ini'
 TEXT_ENCODING = 'utf-8-sig'
+RSTR = r"[\/\\\:\*\？?\"\<\>\|&#.。,， ~！· ]"
+
+DEFAULT_VIDEO_QUALITY = 'LD'
 
 # --- 配置管理类 ---
 class ConfigManager:
@@ -310,30 +314,45 @@ class PlatformDetector:
     
     async def check_status(self, url: str) -> Tuple[Optional[bool], str]:
         """检测直播状态"""
+        
         try:
+            port_info = []
+
             # 抖音平台
             if "douyin.com" in url or "iesdouyin.com" in url:
                 cookie = self.cookies.get('douyin', '')
                 data = await spider.get_douyin_web_stream_data(url, cookies=cookie)
-                return data.get('is_live', False), data.get('anchor_name', '抖音主播')
+
+                anchor_name = data.get('anchor_name') or data.get('nickname') or "抖音主播"
+
+                return data.get('is_live', False), anchor_name
             
             # B站平台
             elif "bilibili.com" in url:
                 cookie = self.cookies.get('bilibili', '')
                 data = await spider.get_bilibili_room_info(url, cookies=cookie)
-                return data.get('live_status') == 1, data.get('uname', 'B站主播')
+                # B站可能使用uname作为主播名
+                anchor_name = data.get('uname', 'B站主播')
+
+                return data.get('live_status') == 1, anchor_name
             
             # 虎牙平台
             elif "huya.com" in url:
                 cookie = self.cookies.get('huya', '')
                 data = await spider.get_huya_stream_data(url, cookies=cookie)
-                return data.get('is_live', False), data.get('anchor_name', '虎牙主播')
+                port_info = await stream.get_huya_stream_url(data, DEFAULT_VIDEO_QUALITY)
+
+                # 从port_info中获取主播名
+                anchor_name = port_info.get("anchor_name", "虎牙主播")
+
+                return data.get('is_live', False), anchor_name
             
             # 斗鱼平台
             elif "douyu.com" in url:
                 cookie = self.cookies.get('douyu', '')
                 data = await spider.get_douyu_info_data(url, cookies=cookie)
-                return data.get('is_live', False), data.get('anchor_name', '斗鱼主播')
+                anchor_name = data.get('anchor_name', '斗鱼主播')
+                return data.get('is_live', False), anchor_name
             
             # 快手平台
             elif "kuaishou.com" in url or "gifshow.com" in url:
@@ -346,6 +365,25 @@ class PlatformDetector:
                 cookie = self.cookies.get('tiktok', '')
                 data = await spider.get_tiktok_stream_data(url, cookies=cookie)
                 return data.get('is_live', False), data.get('anchor_name', 'TikTok主播')
+
+            # 小红书平台
+            elif "xhslink.com" in url or "xiaohongshu.com" in url or "redelight.cn" in url:
+                cookie = self.cookies.get('xiaohongshu', '')
+                
+                # 调用小红书的爬虫
+                port_info = await spider.get_xhs_stream_url(url, cookies=cookie)
+                
+                if port_info:
+                    is_live = port_info.get('is_live', False)
+                    anchor_name = port_info.get("anchor_name", "小红书主播")
+                    
+                    # 清理主播名
+                    if anchor_name:
+                        anchor_name = clean_name(anchor_name)
+                    
+                    return is_live, anchor_name
+                else:
+                    return False, "小红书主播"
             
             # 添加其他平台的检测逻辑...
             # 可以根据需要添加更多平台
@@ -389,6 +427,17 @@ def load_url_config() -> List[Dict[str, str]]:
     
     logger.info(f"加载了 {len(urls)} 个直播间")
     return urls
+
+# clean_emoji = options.get(read_config_value(config, '录制设置', '是否去除名称中的表情符号', "是"), True)
+def clean_name(input_text: str):
+    if not input_text:
+        return '空白昵称'
+    
+    cleaned_name = re.sub(RSTR, "_", input_text.strip()).strip('_')
+    cleaned_name = cleaned_name.replace("（", "(").replace("）", ")")
+    cleaned_name = utils.remove_emojis(cleaned_name, '_').strip('_')
+        
+    return cleaned_name or '空白昵称'
 
 # --- 状态追踪器 ---
 class StatusTracker:
