@@ -5,6 +5,7 @@ import datetime
 import os
 import sys
 import re
+import shutil
 from typing import Any, Dict, List, Optional, Tuple, Set
 from src import spider, stream
 from src.utils import logger
@@ -18,6 +19,11 @@ CONFIG_FILE = 'config/config.ini'
 URL_CONFIG_FILE = 'config/URL_config.ini'
 TEXT_ENCODING = 'utf-8-sig'
 RSTR = r"[\/\\\:\*\？?\"\<\>\|&#.。,， ~！· ]"
+
+# 备份目录
+BACKUP_DIR = 'backup_config'
+# 最多保留n个备份
+BACKUP_LIMIT = 6
 
 DEFAULT_VIDEO_QUALITY = 'LD'
 
@@ -472,9 +478,82 @@ class StatusTracker:
             status_str = "直播中" if is_live else "未开播"
             logger.debug(f"状态未变: {display_name} {status_str}")
 
+
+# --- 配置文件备份功能 ---
+def backup_config_file(file_path: str, backup_dir_path: str, limit_counts: int = BACKUP_LIMIT) -> None:
+    """备份配置文件"""
+    try:
+        if not os.path.exists(file_path):
+            logger.warning(f"配置文件不存在: {file_path}")
+            return
+            
+        if not os.path.exists(backup_dir_path):
+            os.makedirs(backup_dir_path)
+            logger.info(f"创建备份目录: {backup_dir_path}")
+
+        # 生成带时间戳的备份文件名
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        file_name = os.path.basename(file_path)
+        backup_file_name = f"{file_name}_{timestamp}.bak"
+        backup_file_path = os.path.join(backup_dir_path, backup_file_name).replace("\\", "/")
+        
+        # 复制文件
+        shutil.copy2(file_path, backup_file_path)
+        logger.info(f"备份配置文件: {file_path} -> {backup_file_path}")
+        
+        # 清理旧的备份文件
+        clean_old_backups(backup_dir_path, file_name, limit_counts)
+        
+    except Exception as e:
+        logger.error(f'备份配置文件 {file_path} 失败：{str(e)}')
+
+def clean_old_backups(backup_dir_path: str, base_name: str, limit_counts: int) -> None:
+    """清理旧的备份文件"""
+    try:
+        if not os.path.exists(backup_dir_path):
+            return
+            
+        files = os.listdir(backup_dir_path)
+        # 筛选出相同基础文件名的备份文件
+        backup_files = [f for f in files if f.startswith(base_name + '_') and f.endswith('.bak')]
+        
+        if len(backup_files) > limit_counts:
+            # 按时间排序（旧的在前面）
+            backup_files.sort(key=lambda x: os.path.getmtime(os.path.join(backup_dir_path, x)))
+            
+            # 删除超出的旧备份
+            for i in range(len(backup_files) - limit_counts):
+                old_file = backup_files[i]
+                old_file_path = os.path.join(backup_dir_path, old_file)
+                os.remove(old_file_path)
+                logger.debug(f"清理旧备份: {old_file}")
+                
+    except Exception as e:
+        logger.error(f'清理旧备份失败：{str(e)}')
+
+def backup_config_files_at_startup() -> None:
+    """程序启动时备份配置文件"""
+    logger.info("=== 启动配置文件备份 ===")
+    
+    # 备份主配置文件
+    if os.path.exists(CONFIG_FILE):
+        backup_config_file(CONFIG_FILE, BACKUP_DIR, BACKUP_LIMIT)
+    else:
+        logger.warning(f"主配置文件不存在: {CONFIG_FILE}")
+    
+    # 备份URL配置文件
+    if os.path.exists(URL_CONFIG_FILE):
+        backup_config_file(URL_CONFIG_FILE, BACKUP_DIR, BACKUP_LIMIT)
+    else:
+        logger.warning(f"URL配置文件不存在: {URL_CONFIG_FILE}")
+    
+    logger.info("=== 配置文件备份完成 ===")
 # --- 主程序 ---
 async def main():
     """主程序入口"""
+    # 程序启动时备份配置文件
+    backup_config_files_at_startup()
+
     logger.info("=== 直播监测模式启动 ===")
     
     # 初始化配置管理器
