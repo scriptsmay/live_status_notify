@@ -811,9 +811,14 @@ async def get_xhs_stream_url(url: str, proxy_addr: OptionalStr = None, cookies: 
                     }
                     return result
 
+    profile_headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7',
+    }
     profile_url = f"https://www.xiaohongshu.com/user/profile/{user_id}"
-    html_str = await async_req(profile_url, proxy_addr=proxy_addr, headers=headers)
-    anchor_name = re.search("<title>@(.*?) 的个人主页</title>", html_str)
+    html_str = await async_req(profile_url, proxy_addr=proxy_addr, headers=profile_headers)
+    anchor_name = re.search(r"<title>(.*?)(?:\s+-\s+小红书)?</title>", html_str, re.DOTALL)
+    # print(f"anchor_name: {anchor_name}")
     if anchor_name:
         result["anchor_name"] = anchor_name.group(1)
 

@@ -37,7 +37,7 @@ class ConfigManager:
         
     def _ensure_sections(self):
         """确保必要的配置段存在"""
-        required_sections = ['录制设置', '推送配置', 'Cookie', 'Authorization', '账号密码', '全局设置']
+        required_sections = ['推送配置', 'Cookie', 'Authorization', '账号密码', '全局设置']
         for section in required_sections:
             if not self.cfg.has_section(section):
                 self.cfg.add_section(section)
@@ -256,6 +256,7 @@ class PlatformDetector:
     """平台检测器，统一管理各平台的检测逻辑"""
     
     def __init__(self, config: Dict[str, str]):
+        self.config = config
         self.cookies = {}
         self._load_cookies(config)
     
@@ -318,6 +319,17 @@ class PlatformDetector:
             if config_key in config and config[config_key]:
                 self.cookies[platform] = config[config_key]
     
+    def clean_name(self, input_text: str):
+        if not input_text:
+            return '空白昵称'
+        
+        cleaned_name = re.sub(RSTR, "_", input_text.strip()).strip('_')
+        cleaned_name = cleaned_name.replace("（", "(").replace("）", ")")
+
+        if self.config.get('clean_emoji', True):
+            cleaned_name = utils.remove_emojis(cleaned_name, '_').strip('_')
+            
+        return cleaned_name or '空白昵称'
     async def check_status(self, url: str) -> Tuple[Optional[bool], str]:
         """检测直播状态"""
         
@@ -385,7 +397,7 @@ class PlatformDetector:
                     
                     # 清理主播名
                     if anchor_name:
-                        anchor_name = clean_name(anchor_name)
+                        anchor_name = self.clean_name(anchor_name)
                     
                     return is_live, anchor_name
                 else:
@@ -433,17 +445,6 @@ def load_url_config() -> List[Dict[str, str]]:
     
     logger.info(f"加载了 {len(urls)} 个直播间")
     return urls
-
-# clean_emoji = options.get(read_config_value(config, '录制设置', '是否去除名称中的表情符号', "是"), True)
-def clean_name(input_text: str):
-    if not input_text:
-        return '空白昵称'
-    
-    cleaned_name = re.sub(RSTR, "_", input_text.strip()).strip('_')
-    cleaned_name = cleaned_name.replace("（", "(").replace("）", ")")
-    cleaned_name = utils.remove_emojis(cleaned_name, '_').strip('_')
-        
-    return cleaned_name or '空白昵称'
 
 # --- 状态追踪器 ---
 class StatusTracker:
@@ -561,6 +562,27 @@ async def main():
     
     # 读取基础配置
     logger.info("正在读取配置...")
+
+    # 全局配置
+    # [全局设置]
+    # language(zh_cn/en) = zh_cn
+    # 是否跳过代理检测 = 否
+    # 是否去除名称中的表情符号 = True
+    # 是否使用代理ip = True
+    # 代理地址 = 
+    # 同一时间访问网络的线程数 = 3
+    # 循环时间(秒) = 300
+    # 排队读取网址时间(秒) = 0
+    global_config = {
+        'language': config_mgr.read_str('全局设置', 'language(zh_cn/en)', 'zh-cn'),
+        'skip_proxy_check': config_mgr.read_boolean('全局设置', '是否跳过代理检测', False),
+        'proxy_ip': config_mgr.read_str('全局设置', '是否使用代理ip', True),
+        'proxy_address': config_mgr.read_str('全局设置', '代理地址', ''),
+        'thread_count': config_mgr.read_int('全局设置', '同一时间访问网络的线程数', 3),
+        'loop_time': config_mgr.read_int('全局设置', '循环时间(秒)', 300),
+        'queue_time': config_mgr.read_int('全局设置', '排队读取网址时间(秒)', 0),
+        'clean_emoji': config_mgr.read_int('全局设置', '是否去除名称中的表情符号', True),
+    }
     
     # 推送配置
     push_config = {
@@ -608,9 +630,10 @@ async def main():
     
     # 合并配置
     push_config.update(cookie_config)
+    push_config.update(global_config)
     
     # 读取检测间隔
-    check_interval = config_mgr.read_int('推送配置', '直播推送检测频率(秒)', 1800)
+    check_interval = config_mgr.read_int('推送配置', '直播推送检测频率(秒)', global_config['loop_time'])
     if check_interval < 10:  # 最小间隔保护
         check_interval = 10
         logger.warning(f"检测间隔过小，调整为{check_interval}秒")
