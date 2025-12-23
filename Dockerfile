@@ -1,10 +1,18 @@
+# --- 第一阶段：只用来提取 Node.js 二进制文件 ---
+FROM node:20-slim AS node_holder
+
+# --- 第二阶段：python生产环境 ---
 FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY . /app
+# 1. 直接从 node 镜像中把 node 拷贝过来 (非常快，无需下载脚本)
+COPY --from=node_holder /usr/local/bin/node /usr/local/bin/
+COPY --from=node_holder /usr/local/lib/node_modules /usr/local/lib/node_modules
+# 创建 npm 软链接
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
 
-# 1. 检查并配置 apt 源（适用于新版 Debian）
+# 2. 配置 APT 源
 RUN if [ -f /etc/apt/sources.list ]; then \
         sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
         sed -i 's/security.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list; \
@@ -13,28 +21,20 @@ RUN if [ -f /etc/apt/sources.list ]; then \
         sed -i 's/security.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources; \
     fi
 
-# 2. 配置 pip 使用清华镜像源
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-
-# 安装 Node.js
-RUN apt-get update && \
-    apt-get install -y curl gnupg && \
-    curl -sL https://deb.nodesource.com/setup_20.x  | bash - && \
-    apt-get install -y nodejs
-
-# 设置时区
-# 安装必要的系统依赖
+# 3. 安装系统依赖（合并了之前的多个 RUN，减少镜像层数）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     ca-certificates \
-    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
-    && echo $TZ > /etc/timezone \
+    && ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir --upgrade pip \
-    # 先安装 distro，再安装其他依赖
-    && pip install --no-cache-dir distro \
-    && pip install --no-cache-dir -r requirements.txt \
-    && rm -rf /root/.cache/pip
+    && rm -rf /var/lib/apt/lists/*
+
+# 4. 配置 Python 环境
+COPY . /app
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir distro && \
+    pip install --no-cache-dir -r requirements.txt
 
 CMD ["python", "main.py"]
