@@ -362,8 +362,9 @@ class PlatformDetector:
 
                 # 从port_info中获取主播名
                 anchor_name = port_info.get("anchor_name", "虎牙主播")
+                is_live = port_info.get('is_live', False)
 
-                return data.get('is_live', False), anchor_name
+                return is_live, anchor_name
             
             # 斗鱼平台
             elif "douyu.com" in url:
