@@ -4,6 +4,8 @@ FROM node:20-slim AS node_holder
 # --- 第二阶段：生产环境 ---
 FROM python:3.11-slim
 
+LABEL org.opencontainers.image.source https://github.com/scriptsmay/live_status_notify
+
 WORKDIR /app
 
 # 1. 拷贝 Node.js
