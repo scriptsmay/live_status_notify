@@ -2,7 +2,7 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ['main']
 
 # 定义权限，必须有 write 权限才能推送到 GHCR
 permissions:
@@ -23,7 +23,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.MY_TOKEN }}
 
       # 2. 提取元数据（自动生成标签，如 :main 和 :sha-xxxx）
       - name: Extract metadata
@@ -45,8 +45,8 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: true  # 设置为 true 就会自动推送
-          tags: ${{ id.meta.outputs.tags }}
-          labels: ${{ id.meta.outputs.labels }}
+          push: true # 设置为 true 就会自动推送
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

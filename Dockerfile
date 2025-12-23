@@ -1,27 +1,27 @@
-# --- 第一阶段：只用来提取 Node.js 二进制文件 ---
+# --- 第一阶段：提取 Node.js ---
 FROM node:20-slim AS node_holder
 
-# --- 第二阶段：python生产环境 ---
+# --- 第二阶段：生产环境 ---
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# 1. 直接从 node 镜像中把 node 拷贝过来 (非常快，无需下载脚本)
+# 1. 拷贝 Node.js
 COPY --from=node_holder /usr/local/bin/node /usr/local/bin/
 COPY --from=node_holder /usr/local/lib/node_modules /usr/local/lib/node_modules
-# 创建 npm 软链接
 RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
 
-# 2. 配置 APT 源
-RUN if [ -f /etc/apt/sources.list ]; then \
-        sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
-        sed -i 's/security.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list; \
-    elif [ -f /etc/apt/sources.list.d/debian.sources ]; then \
-        sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources && \
-        sed -i 's/security.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources; \
+# 2. 动态配置 APT 和 Pip 源
+ARG USE_CHINA_MIRROR=false
+RUN if [ "$USE_CHINA_MIRROR" = "true" ]; then \
+        # 兼容 Debian 12 的新旧两种源格式
+        [ -f /etc/apt/sources.list ] && sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list; \
+        [ -f /etc/apt/sources.list.d/debian.sources ] && sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources; \
+        # 配置 Pip 国内源
+        pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple; \
     fi
 
-# 3. 安装系统依赖（合并了之前的多个 RUN，减少镜像层数）
+# 3. 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     ca-certificates \
@@ -30,11 +30,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# 4. 配置 Python 环境
-COPY . /app
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
-    pip install --no-cache-dir --upgrade pip && \
+# 4. 安装 Python 依赖
+# 先拷贝 requirements.txt 可以利用 Docker 缓存层
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir distro && \
     pip install --no-cache-dir -r requirements.txt
+
+# 最后拷贝代码
+COPY . .
 
 CMD ["python", "main.py"]
