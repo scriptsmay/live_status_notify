@@ -7,7 +7,7 @@ import sys
 import re
 import shutil
 from typing import Any, Dict, List, Optional, Tuple, Set
-from src import spider, stream
+from src import spider, stream, kuaishou_spider
 from src.utils import logger
 from src import utils
 from msg_push import (
@@ -374,9 +374,9 @@ class PlatformDetector:
                 return data.get('is_live', False), anchor_name
             
             # 快手平台
-            elif "kuaishou.com" in url or "gifshow.com" in url:
+            elif "kuaishou.com" in url or "kuaishou.cn" in url:
                 cookie = self.cookies.get('kuaishou', '')
-                data = await spider.get_kuaishou_stream_data(url, cookies=cookie)
+                data = await kuaishou_spider.get_kuaishou_stream_data(url, cookies=cookie)
                 return data.get('is_live', False), data.get('anchor_name', '快手主播')
             
             # TikTok平台

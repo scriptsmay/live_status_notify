@@ -169,3 +169,4 @@ config/config.ini
 config/URL_config.ini
 
 .DS_store
+kuaishou_user_data/
