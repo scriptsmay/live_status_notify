@@ -1,0 +1,20 @@
+# 直播间 URL 配置
+# 格式: 列表，每个直播间包含 url 和 name 字段
+#
+# 示例:
+# - url: "https://live.douyin.com/123456"
+#   name: "主播A"
+# - url: "https://live.bilibili.com/789"
+#   name: "主播B"
+
+urls:
+  # - url: "https://live.douyin.com/直播间ID"
+  #   name: "抖音主播名称"
+  # - url: "https://live.bilibili.com/房间号"
+  #   name: "B站主播名称"
+  # - url: "https://www.huya.com/房间号"
+  #   name: "虎牙主播名称"
+  # - url: "https://www.douyu.com/房间号"
+  #   name: "斗鱼主播名称"
+  # - url: "https://live.kuaishou.com/u/用户ID"
+  #   name: "快手主播名称"

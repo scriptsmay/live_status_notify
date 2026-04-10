@@ -3,9 +3,12 @@ services:
     build: .
     container_name: live-status-notify
     restart: always
+    shm_size: '2gb'  # 增加共享内存，避免 Chromium 内存不足
+    environment:
+      - TZ=Asia/Shanghai
+      - CONTAINER=1  # 标记容器环境，代码中用于检测
     volumes:
       - ./config:/app/config
       - ./logs:/app/logs
       - ./backup_config:/app/backup_config
-    environment:
-      - TZ=Asia/Shanghai
+      - ./kuaishou_user_data:/app/kuaishou_user_data  # 持久化浏览器数据

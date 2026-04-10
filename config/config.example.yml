@@ -1,0 +1,140 @@
+# 全局设置
+global:
+  language: zh_cn  # zh_cn 或 en
+  skip_proxy_check: false  # 是否跳过代理检测
+  clean_emoji: true  # 是否去除名称中的表情符号
+  use_proxy: true  # 是否使用代理ip
+  proxy_address: ""  # 代理地址
+  thread_count: 3  # 同一时间访问网络的线程数
+  loop_time: 300  # 循环时间(秒)
+  queue_time: 0  # 排队读取网址时间(秒)
+
+# 推送配置
+push:
+  # 可选: wechat|dingtalk|tg|email|bark|ntfy|pushplus|feishu|gotify 可填多个
+  channels: []  # 推送渠道列表，如 ["wechat", "dingtalk"]
+  title: "直播间通知"  # 自定义推送标题
+  custom_start_msg: "[直播间名称] 已开播！\n[时间]"  # 开播推送内容
+  custom_stop_msg: "[直播间名称] 已结束直播。\n[时间]"  # 关播推送内容
+  push_start: true  # 开播推送开启
+  push_stop: true  # 关播推送开启
+  check_interval: null  # 直播推送检测频率(秒)，null 则使用 global.loop_time
+
+  # 各渠道配置
+  wechat:
+    url: ""  # 微信推送接口链接
+
+  dingtalk:
+    url: ""  # 钉钉推送接口链接
+    at_mobiles: ""  # 钉钉通知@对象(填手机号)
+    is_at_all: false  # 钉钉通知@全体
+
+  telegram:
+    token: ""  # tgapi令牌
+    chat_id: ""  # tg聊天id(个人或者群组id)
+
+  bark:
+    url: ""  # bark推送接口链接
+    level: "active"  # bark推送中断级别
+    ring: ""  # bark推送铃声
+
+  ntfy:
+    url: "https://ntfy.sh/xxxx"  # ntfy推送地址
+    tag: "tada"  # ntfy推送标签
+    email: ""  # ntfy推送邮箱
+
+  pushplus:
+    token: ""  # pushplus推送token
+
+  feishu:
+    url: "https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxxx"  # 飞书推送接口链接
+    at: ""  # 飞书通知@对象 (openid / userid)
+
+  gotify:
+    url: "https://gotify.server/"  # gotify推送地址
+    token: "xxxxxx"  # gotify推送token
+    priority: 5  # gotify推送优先级
+
+  email:
+    smtp_host: ""  # smtp邮件服务器
+    smtp_port: 465  # SMTP邮件服务器端口
+    use_ssl: true  # 是否使用SMTP服务SSL加密
+    login_email: ""  # 邮箱登录账号
+    email_pass: ""  # 发件人密码(授权码)
+    sender_email: ""  # 发件人邮箱
+    sender_nick: ""  # 发件人显示昵称
+    receiver_email: ""  # 收件人邮箱
+
+# Cookie 配置
+# 各平台 Cookie，用于保持登录态或获取更多信息
+cookies:
+  douyin: ""
+  kuaishou: ""
+  tiktok: ""
+  huya: ""
+  douyu: ""
+  bilibili: ""
+  xiaohongshu: ""
+  twitch: ""
+  yy: ""
+  bigo: ""
+  blued: ""
+  sooplive: ""
+  netease: ""
+  pandatv: ""
+  maoer: ""
+  winktv: ""
+  flextv: ""
+  look: ""
+  twitcasting: ""
+  baidu: ""
+  weibo: ""
+  kugou: ""
+  liveme: ""
+  huajiao: ""
+  liuxing: ""
+  showroom: ""
+  acfun: ""
+  changliao: ""
+  yinbo: ""
+  yingke: ""
+  zhihu: ""
+  chzzk: ""
+  haixiu: ""
+  vvxqiu: ""
+  "17live": ""
+  langlive: ""
+  pplive: ""
+  "6room": ""
+  lehaitv: ""
+  huamao: ""
+  shopee: ""
+  youtube: ""
+  taobao: ""
+  jd: ""
+  faceit: ""
+  migu: ""
+  lianjie: ""
+  laixiu: ""
+  picarto: ""
+
+# Authorization 配置
+authorization:
+  popkontv_token: ""
+
+# 账号密码配置
+accounts:
+  sooplive:
+    username: ""
+    password: ""
+  flextv:
+    username: ""
+    password: ""
+  popkontv:
+    username: ""
+    password: ""
+    partner_code: "P-00001"
+  twitcasting:
+    account_type: "normal"  # normal 或其他类型
+    username: ""
+    password: ""

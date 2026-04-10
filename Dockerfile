@@ -23,10 +23,29 @@ RUN if [ "$USE_CHINA_MIRROR" = "true" ]; then \
         pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple; \
     fi
 
-# 3. 安装系统依赖
+# 3. 安装系统依赖（包含 Playwright 需要的库）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     ca-certificates \
+    # Playwright Chromium 依赖
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    libxshmfence1 \
+    libglib2.0-0 \
+    fonts-liberation \
+    libappindicator3-1 \
+    xdg-utils \
     && ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone \
     && apt-get clean \
@@ -38,6 +57,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir distro && \
     pip install --no-cache-dir -r requirements.txt
+
+# 5. 安装 Playwright 并下载 Chromium
+RUN playwright install chromium && \
+    playwright install-deps chromium
 
 # 最后拷贝代码
 COPY . .

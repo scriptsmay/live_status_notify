@@ -7,8 +7,8 @@
 mkdir -p config
 
 # download config
-wget https://raw.githubusercontent.com/scriptsmay/live_status_notify/main/config/config.example.ini -O ./config/config.ini
-wget https://raw.githubusercontent.com/scriptsmay/live_status_notify/main/config/URL_config.example.ini -O ./config/URL_config.ini
+wget https://raw.githubusercontent.com/scriptsmay/live_status_notify/main/config/config.example.yml -O ./config/config.yml
+wget https://raw.githubusercontent.com/scriptsmay/live_status_notify/main/config/urls.example.yml -O ./config/urls.yml
 ```
 
 config your files as your own

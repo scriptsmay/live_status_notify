@@ -808,7 +808,7 @@ async def get_blued_stream_url(url: str, proxy_addr: OptionalStr = None, cookies
 async def login_sooplive(username: str, password: str, proxy_addr: OptionalStr = None) -> OptionalStr:
     if len(username) < 6 or len(password) < 10:
         raise RuntimeError("sooplive login failed! Please enter the correct account and password for the sooplive "
-                           "platform in the config.ini file.")
+                           "platform in the config.yml file.")
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
@@ -1405,7 +1405,7 @@ async def get_flextv_stream_data(
             print("Attempting to log in to the FlexTV live streaming platform, please ensure your account and "
                   "password are correctly filled in the configuration file.")
             if len(username) < 6 or len(password) < 8:
-                raise RuntimeError("FlexTV登录失败！请在config.ini配置文件中填写正确的FlexTV平台的账号和密码")
+                raise RuntimeError("FlexTV登录失败！请在config.yml配置文件中填写正确的FlexTV平台的账号和密码")
             new_cookies = await login_flextv(username, password, proxy_addr=proxy_addr)
             if new_cookies:
                 print("Logged into FlexTV platform successfully! Starting to fetch live streaming data...")
@@ -1704,7 +1704,7 @@ async def get_popkontv_stream_url(
                   "and password are correctly filled in the configuration file.")
             if len(username) < 4 or len(password) < 10:
                 raise RuntimeError("popkontv login failed! Please enter the correct account and password for the "
-                                   "popkontv platform in the config.ini file.")
+                                   "popkontv platform in the config.yml file.")
             print("Logging into popkontv platform...")
             new_access_token, new_partner_code = await login_popkontv(
                 username=username, password=password, proxy_addr=proxy_addr, code=partner_code
@@ -2184,7 +2184,7 @@ async def get_huajiao_sn(url: str, cookies: OptionalStr = None, proxy_addr: Opti
         live_id = url.split('?')[0].rsplit('/', maxsplit=1)[1]
         return nickname, sn, uid, live_id
     except Exception:
-        utils.replace_url(f'{script_path}/config/URL_config.ini', old=url, new='#' + url)
+        utils.replace_url(f'{script_path}/config/urls.yml', old=url, new='#' + url)
         raise RuntimeError("Failed to retrieve live room data, the Huajiao live room address is not fixed, please use "
                            "the anchor's homepage address for recording.")
 
@@ -2921,7 +2921,7 @@ async def get_youtube_stream_url(url: str, proxy_addr: OptionalStr = None, cooki
     json_data = json.loads(json_str)
     result = {"anchor_name": "", "is_live": False}
     if 'videoDetails' not in json_data:
-        print("Error: Please log in to YouTube on your device's webpage and configure cookies in the config.ini")
+        print("Error: Please log in to YouTube on your device's webpage and configure cookies in the config.yml")
         return result
     result['anchor_name'] = json_data['videoDetails']['author']
     live_status = json_data['videoDetails'].get('isLive')

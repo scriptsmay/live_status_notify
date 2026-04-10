@@ -10,6 +10,7 @@ Copyright (c) 2023-2024 by Hmily, All Rights Reserved.
 from typing import Dict, Any, List
 import json
 import base64
+import os
 import urllib.request
 import urllib.error
 import smtplib
@@ -17,8 +18,15 @@ from email.header import Header
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-no_proxy_handler = urllib.request.ProxyHandler({})
-opener = urllib.request.build_opener(no_proxy_handler)
+# 支持系统代理配置
+proxy_env = {
+    'http': os.environ.get('http_proxy') or os.environ.get('HTTP_PROXY'),
+    'https': os.environ.get('https_proxy') or os.environ.get('HTTPS_PROXY'),
+    'no': os.environ.get('no_proxy') or os.environ.get('NO_PROXY'),
+}
+proxy_config = {k: v for k, v in proxy_env.items() if v}
+proxy_handler = urllib.request.ProxyHandler(proxy_config) if proxy_config else urllib.request.ProxyHandler({})
+opener = urllib.request.build_opener(proxy_handler)
 headers: Dict[str, str] = {'Content-Type': 'application/json'}
 
 
@@ -277,10 +285,12 @@ def gotify(api: str, token: str, title: str = "message", content: str = 'test', 
         
     # 2. 构造请求 URL 和 Headers
     request_url = f"{base_url}/message"
-    
+
     # 复制全局 headers 并添加 Gotify Token 认证头部
     request_headers = headers.copy()
     request_headers['X-Gotify-Key'] = app_token
+    request_headers['User-Agent'] = 'python-requests/2.31.0'
+    request_headers['Accept'] = '*/*'
 
     # 3. 构造 JSON Payload
     extras = {}

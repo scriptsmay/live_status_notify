@@ -1,11 +1,11 @@
 # -*- encoding: utf-8 -*-
 import asyncio
-import configparser
 import datetime
 import os
 import sys
 import re
 import shutil
+import yaml
 from typing import Any, Dict, List, Optional, Tuple, Set
 from src import spider, stream, kuaishou_spider
 from src.utils import logger
@@ -15,10 +15,10 @@ from msg_push import (
 )
 
 # --- 常量定义 ---
-CONFIG_FILE = 'config/config.ini'
-URL_CONFIG_FILE = 'config/URL_config.ini'
+CONFIG_FILE = 'config/config.yml'
+URL_CONFIG_FILE = 'config/urls.yml'
 TEXT_ENCODING = 'utf-8-sig'
-RSTR = r"[\/\\\:\*\？?\"\<\>\|&#.。,， ~！· ]"
+RSTR = r"[\/\\\:\*\？?\"\<\>\|&#.。,， ~！· ]"
 
 # 备份目录
 BACKUP_DIR = 'backup_config'
@@ -29,59 +29,71 @@ DEFAULT_VIDEO_QUALITY = 'LD'
 
 # --- 配置管理类 ---
 class ConfigManager:
-    """配置管理器，统一处理配置读取和验证"""
-    
+    """配置管理器，基于 YAML 的配置读取和验证"""
+
     def __init__(self):
-        self.cfg = configparser.RawConfigParser()
-        self._ensure_sections()
-        
-    def _ensure_sections(self):
-        """确保必要的配置段存在"""
-        required_sections = ['推送配置', 'Cookie', 'Authorization', '账号密码', '全局设置']
-        for section in required_sections:
-            if not self.cfg.has_section(section):
-                self.cfg.add_section(section)
-    
-    def read(self, section: str, option: str, default: Any = None, 
-             value_type: str = 'str') -> Any:
-        """读取配置值，支持不同类型"""
+        self.config = {}
+        self._load_config()
+
+    def _load_config(self):
+        """加载 YAML 配置文件"""
+        if not os.path.exists(CONFIG_FILE):
+            logger.warning(f"配置文件不存在: {CONFIG_FILE}")
+            self.config = {}
+            return
+
         try:
-            self.cfg.read(CONFIG_FILE, encoding=TEXT_ENCODING)
-            value = self.cfg.get(section, option)
+            with open(CONFIG_FILE, 'r', encoding=TEXT_ENCODING) as f:
+                self.config = yaml.safe_load(f) or {}
+        except yaml.YAMLError as e:
+            logger.error(f"YAML 配置文件解析失败: {e}")
+            self.config = {}
+        except Exception as e:
+            logger.error(f"读取配置文件失败: {e}")
+            self.config = {}
+
+    def get(self, key_path: str, default: Any = None) -> Any:
+        """通过路径获取配置值，支持嵌套访问
+        
+        Args:
+            key_path: 键路径，如 'global.language' 或 'push.wechat.url'
+            default: 默认值
             
-            if value_type == 'bool':
-                return str(value).strip().lower() in ('是', 'true', 'yes', '1', 'on')
-            elif value_type == 'int':
-                try:
-                    return int(str(value).strip())
-                except ValueError:
-                    return default if default is not None else 0
-            elif value_type == 'str':
-                return str(value).strip()
+        Returns:
+            配置值或默认值
+        """
+        keys = key_path.split('.')
+        value = self.config
+        
+        for key in keys:
+            if isinstance(value, dict) and key in value:
+                value = value[key]
             else:
-                return value
-        except (configparser.NoSectionError, configparser.NoOptionError):
-            if default is not None:
-                self.cfg.set(section, option, str(default))
-                self._save_config()
+                return default
+        
+        return value
+
+    def get_str(self, key_path: str, default: str = '') -> str:
+        """获取字符串类型配置"""
+        value = self.get(key_path, default)
+        return str(value) if value is not None else default
+
+    def get_bool(self, key_path: str, default: bool) -> bool:
+        """获取布尔类型配置"""
+        value = self.get(key_path, default)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in ('是', 'true', 'yes', '1', 'on')
+        return default
+
+    def get_int(self, key_path: str, default: int) -> int:
+        """获取整数类型配置"""
+        value = self.get(key_path, default)
+        try:
+            return int(value)
+        except (ValueError, TypeError):
             return default
-    
-    def read_boolean(self, section: str, option: str, default: bool) -> bool:
-        """读取布尔值配置"""
-        return self.read(section, option, default, 'bool')
-    
-    def read_int(self, section: str, option: str, default: int) -> int:
-        """读取整型配置"""
-        return self.read(section, option, default, 'int')
-    
-    def read_str(self, section: str, option: str, default: str = '') -> str:
-        """读取字符串配置"""
-        return self.read(section, option, default, 'str')
-    
-    def _save_config(self):
-        """保存配置到文件"""
-        with open(CONFIG_FILE, 'w', encoding=TEXT_ENCODING) as f:
-            self.cfg.write(f)
 
 # --- 推送处理器 ---
 class PushHandler:
@@ -417,34 +429,41 @@ class PlatformDetector:
 
 # --- URL 配置读取器 ---
 def load_url_config() -> List[Dict[str, str]]:
-    """加载URL配置"""
+    """加载URL配置（YAML格式）"""
     urls = []
-    
+
     if not os.path.exists(URL_CONFIG_FILE):
         logger.warning(f"URL配置文件不存在: {URL_CONFIG_FILE}")
         return urls
-    
-    with open(URL_CONFIG_FILE, 'r', encoding=TEXT_ENCODING) as f:
-        for line_num, line in enumerate(f, 1):
-            line = line.strip()
-            if not line or line.startswith('#'):
+
+    try:
+        with open(URL_CONFIG_FILE, 'r', encoding=TEXT_ENCODING) as f:
+            config = yaml.safe_load(f) or {}
+
+        urls_list = config.get('urls', [])
+        if not isinstance(urls_list, list):
+            logger.error("URL配置文件格式错误，'urls' 应该是列表类型")
+            return urls
+
+        for item in urls_list:
+            if not isinstance(item, dict):
+                logger.warning(f"跳过无效的URL配置项: {item}")
                 continue
-            
-            # 尝试多种格式解析
-            if line.count(',') >= 2:
-                # 格式: 序号,URL,名称
-                parts = line.split(',', 2)
-                if len(parts) >= 3:
-                    url = parts[1].strip()
-                    name = parts[2].strip()
-                    urls.append({'url': url, 'name': name})
-            elif 'http' in line:
-                # 格式: URL
-                urls.append({'url': line.strip(), 'name': "未知主播"})
+
+            url = item.get('url', '').strip()
+            name = item.get('name', '未知主播').strip()
+
+            if url and ('http' in url.lower()):
+                urls.append({'url': url, 'name': name})
             else:
-                logger.warning(f"第{line_num}行格式无法识别: {line}")
-    
-    logger.info(f"加载了 {len(urls)} 个直播间")
+                logger.warning(f"跳过无效的URL: {url}")
+
+        logger.info(f"加载了 {len(urls)} 个直播间")
+    except yaml.YAMLError as e:
+        logger.error(f"URL YAML 配置文件解析失败: {e}")
+    except Exception as e:
+        logger.error(f"加载URL配置文件失败: {e}")
+
     return urls
 
 # --- 状态追踪器 ---
@@ -514,22 +533,23 @@ def clean_old_backups(backup_dir_path: str, base_name: str, limit_counts: int) -
     try:
         if not os.path.exists(backup_dir_path):
             return
-            
+
         files = os.listdir(backup_dir_path)
-        # 筛选出相同基础文件名的备份文件
-        backup_files = [f for f in files if f.startswith(base_name + '_') and f.endswith('.bak')]
-        
+        # 筛选出相同基础文件名的备份文件（支持 .ini 和 .yml 扩展名）
+        backup_files = [f for f in files if (f.startswith(base_name + '_') and 
+                        (f.endswith('.bak') or f.endswith('.ini.bak') or f.endswith('.yml.bak')))]
+
         if len(backup_files) > limit_counts:
             # 按时间排序（旧的在前面）
             backup_files.sort(key=lambda x: os.path.getmtime(os.path.join(backup_dir_path, x)))
-            
+
             # 删除超出的旧备份
             for i in range(len(backup_files) - limit_counts):
                 old_file = backup_files[i]
                 old_file_path = os.path.join(backup_dir_path, old_file)
                 os.remove(old_file_path)
                 logger.debug(f"清理旧备份: {old_file}")
-                
+
     except Exception as e:
         logger.error(f'清理旧备份失败：{str(e)}')
 
@@ -560,82 +580,70 @@ async def main():
     
     # 初始化配置管理器
     config_mgr = ConfigManager()
-    
+
     # 读取基础配置
     logger.info("正在读取配置...")
 
     # 全局配置
-    # [全局设置]
-    # language(zh_cn/en) = zh_cn
-    # 是否跳过代理检测 = 否
-    # 是否去除名称中的表情符号 = True
-    # 是否使用代理ip = True
-    # 代理地址 = 
-    # 同一时间访问网络的线程数 = 3
-    # 循环时间(秒) = 300
-    # 排队读取网址时间(秒) = 0
     global_config = {
-        'language': config_mgr.read_str('全局设置', 'language(zh_cn/en)', 'zh-cn'),
-        'skip_proxy_check': config_mgr.read_boolean('全局设置', '是否跳过代理检测', False),
-        'proxy_ip': config_mgr.read_str('全局设置', '是否使用代理ip', True),
-        'proxy_address': config_mgr.read_str('全局设置', '代理地址', ''),
-        'thread_count': config_mgr.read_int('全局设置', '同一时间访问网络的线程数', 3),
-        'loop_time': config_mgr.read_int('全局设置', '循环时间(秒)', 300),
-        'queue_time': config_mgr.read_int('全局设置', '排队读取网址时间(秒)', 0),
-        'clean_emoji': config_mgr.read_int('全局设置', '是否去除名称中的表情符号', True),
+        'language': config_mgr.get_str('global.language', 'zh-cn'),
+        'skip_proxy_check': config_mgr.get_bool('global.skip_proxy_check', False),
+        'proxy_ip': config_mgr.get_bool('global.use_proxy', True),
+        'proxy_address': config_mgr.get_str('global.proxy_address', ''),
+        'thread_count': config_mgr.get_int('global.thread_count', 3),
+        'loop_time': config_mgr.get_int('global.loop_time', 300),
+        'queue_time': config_mgr.get_int('global.queue_time', 0),
+        'clean_emoji': config_mgr.get_bool('global.clean_emoji', True),
     }
-    
+
     # 推送配置
     push_config = {
-        'channels': config_mgr.read_str('推送配置', '直播状态推送渠道', ''),
-        'title': config_mgr.read_str('推送配置', '自定义推送标题', '直播间通知'),
-        'custom_start_msg': config_mgr.read_str('推送配置', '自定义开播推送内容', '[直播间名称] 已开播！ \n [时间]'),
-        'custom_stop_msg': config_mgr.read_str('推送配置', '自定义关播推送内容', '[直播间名称] 已结束直播。 \n [时间]'),
-        'push_start': config_mgr.read_boolean('推送配置', '开播推送开启(是/否)', True),
-        'push_stop': config_mgr.read_boolean('推送配置', '关播推送开启(是/否)', True),
-        
+        'channels': '|'.join(config_mgr.get('push.channels', [])),
+        'title': config_mgr.get_str('push.title', '直播间通知'),
+        'custom_start_msg': config_mgr.get_str('push.custom_start_msg', '[直播间名称] 已开播！\n[时间]'),
+        'custom_stop_msg': config_mgr.get_str('push.custom_stop_msg', '[直播间名称] 已结束直播。\n[时间]'),
+        'push_start': config_mgr.get_bool('push.push_start', True),
+        'push_stop': config_mgr.get_bool('push.push_stop', True),
+
         # 各渠道配置
-        'wx_url': config_mgr.read_str('推送配置', '微信推送接口链接', ''),
-        'dd_url': config_mgr.read_str('推送配置', '钉钉推送接口链接', ''),
-        'dd_at': config_mgr.read_str('推送配置', '钉钉通知@对象(填手机号)', ''),
-        'dd_all': config_mgr.read_boolean('推送配置', '钉钉通知@全体(是/否)', False),
-        'tg_token': config_mgr.read_str('推送配置', 'tgapi令牌', ''),
-        'tg_chat_id': config_mgr.read_str('推送配置', 'tg聊天id(个人或者群组id)', ''),
-        'bark_url': config_mgr.read_str('推送配置', 'bark推送接口链接', ''),
-        'bark_lv': config_mgr.read_str('推送配置', 'bark推送中断级别', 'active'),
-        'bark_ring': config_mgr.read_str('推送配置', 'bark推送铃声', ''),
-        'ntfy_url': config_mgr.read_str('推送配置', 'ntfy推送地址', ''),
-        'ntfy_tag': config_mgr.read_str('推送配置', 'ntfy推送标签', 'tada'),
-        'ntfy_email': config_mgr.read_str('推送配置', 'ntfy推送邮箱', ''),
-        'pp_token': config_mgr.read_str('推送配置', 'pushplus推送token', ''),
-        'fs_url': config_mgr.read_str('推送配置', '飞书推送接口链接', ''),
-        'fs_at': config_mgr.read_str('推送配置', '飞书通知@对象', ''),
-        'gt_url': config_mgr.read_str('推送配置', 'gotify推送地址', ''),
-        'gt_token': config_mgr.read_str('推送配置', 'gotify推送token', ''),
-        'gt_prio': config_mgr.read_int('推送配置', 'gotify推送优先级', 5),
-        'email_srv': config_mgr.read_str('推送配置', 'smtp邮件服务器', ''),
-        'email_acc': config_mgr.read_str('推送配置', '邮箱登录账号', ''),
-        'email_pwd': config_mgr.read_str('推送配置', '发件人密码(授权码)', ''),
-        'email_from': config_mgr.read_str('推送配置', '发件人邮箱', ''),
-        'email_nick': config_mgr.read_str('推送配置', '发件人显示昵称', ''),
-        'email_to': config_mgr.read_str('推送配置', '收件人邮箱', ''),
-        'email_port': config_mgr.read_int('推送配置', 'SMTP邮件服务器端口', 465),
-        'email_ssl': config_mgr.read_boolean('推送配置', '是否使用SMTP服务SSL加密(是/否)', True)
+        'wx_url': config_mgr.get_str('push.wechat.url', ''),
+        'dd_url': config_mgr.get_str('push.dingtalk.url', ''),
+        'dd_at': config_mgr.get_str('push.dingtalk.at_mobiles', ''),
+        'dd_all': config_mgr.get_bool('push.dingtalk.is_at_all', False),
+        'tg_token': config_mgr.get_str('push.telegram.token', ''),
+        'tg_chat_id': config_mgr.get_str('push.telegram.chat_id', ''),
+        'bark_url': config_mgr.get_str('push.bark.url', ''),
+        'bark_lv': config_mgr.get_str('push.bark.level', 'active'),
+        'bark_ring': config_mgr.get_str('push.bark.ring', ''),
+        'ntfy_url': config_mgr.get_str('push.ntfy.url', ''),
+        'ntfy_tag': config_mgr.get_str('push.ntfy.tag', 'tada'),
+        'ntfy_email': config_mgr.get_str('push.ntfy.email', ''),
+        'pp_token': config_mgr.get_str('push.pushplus.token', ''),
+        'fs_url': config_mgr.get_str('push.feishu.url', ''),
+        'fs_at': config_mgr.get_str('push.feishu.at', ''),
+        'gt_url': config_mgr.get_str('push.gotify.url', ''),
+        'gt_token': config_mgr.get_str('push.gotify.token', ''),
+        'gt_prio': config_mgr.get_int('push.gotify.priority', 5),
+        'email_srv': config_mgr.get_str('push.email.smtp_host', ''),
+        'email_acc': config_mgr.get_str('push.email.login_email', ''),
+        'email_pwd': config_mgr.get_str('push.email.email_pass', ''),
+        'email_from': config_mgr.get_str('push.email.sender_email', ''),
+        'email_nick': config_mgr.get_str('push.email.sender_nick', ''),
+        'email_to': config_mgr.get_str('push.email.receiver_email', ''),
+        'email_port': config_mgr.get_int('push.email.smtp_port', 465),
+        'email_ssl': config_mgr.get_bool('push.email.use_ssl', True)
     }
-    
+
     # 读取Cookie配置
-    cookie_config = {}
-    if config_mgr.cfg.has_section('Cookie'):
-        for option in config_mgr.cfg.options('Cookie'):
-            cookie_config[option] = config_mgr.read_str('Cookie', option, '')
-    
+    cookie_config = config_mgr.get('cookies', {})
+
     # 合并配置
     push_config.update(cookie_config)
     push_config.update(global_config)
-    
+
     # 读取检测间隔
-    check_interval = config_mgr.read_int('推送配置', '直播推送检测频率(秒)', global_config['loop_time'])
-    if check_interval < 10:  # 最小间隔保护
+    check_interval = config_mgr.get_int('push.check_interval', global_config['loop_time'])
+    if check_interval is None or check_interval < 10:  # 最小间隔保护
         check_interval = 10
         logger.warning(f"检测间隔过小，调整为{check_interval}秒")
     
