@@ -2,14 +2,13 @@
 import asyncio
 import datetime
 import os
-import sys
 import re
 import shutil
+import sys
 import yaml
 from typing import Any, Dict, List, Optional, Tuple, Set
 from src import spider, stream, kuaishou_spider
-from src.utils import logger
-from src import utils
+from src.utils import logger, remove_emojis
 from msg_push import (
     dingtalk, xizhi, tg_bot, send_email, bark, ntfy, pushplus, gotify, feishubot
 )
@@ -339,43 +338,34 @@ class PlatformDetector:
         cleaned_name = cleaned_name.replace("（", "(").replace("）", ")")
 
         if self.config.get('clean_emoji', True):
-            cleaned_name = utils.remove_emojis(cleaned_name, '_').strip('_')
+            cleaned_name = remove_emojis(cleaned_name, '_').strip('_')
             
         return cleaned_name or '空白昵称'
     async def check_status(self, url: str) -> Tuple[Optional[bool], str]:
         """检测直播状态"""
-        
-        try:
-            port_info = []
 
+        try:
             # 抖音平台
             if "douyin.com" in url or "iesdouyin.com" in url:
                 cookie = self.cookies.get('douyin', '')
                 data = await spider.get_douyin_web_stream_data(url, cookies=cookie)
-
                 anchor_name = data.get('anchor_name') or data.get('nickname') or "抖音主播"
-
                 return data.get('is_live', False), anchor_name
-            
+
             # B站平台
             elif "bilibili.com" in url:
                 cookie = self.cookies.get('bilibili', '')
                 data = await spider.get_bilibili_room_info(url, cookies=cookie)
-                # B站可能使用uname作为主播名
                 anchor_name = data.get('uname', 'B站主播')
-
                 return data.get('live_status') == 1, anchor_name
-            
+
             # 虎牙平台
             elif "huya.com" in url:
                 cookie = self.cookies.get('huya', '')
                 data = await spider.get_huya_stream_data(url, cookies=cookie)
                 port_info = await stream.get_huya_stream_url(data, DEFAULT_VIDEO_QUALITY)
-
-                # 从port_info中获取主播名
                 anchor_name = port_info.get("anchor_name", "虎牙主播")
                 is_live = port_info.get('is_live', False)
-
                 return is_live, anchor_name
             
             # 斗鱼平台

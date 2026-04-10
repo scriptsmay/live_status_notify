@@ -11,11 +11,7 @@ import re
 import urllib.parse
 import execjs
 import httpx
-import urllib.request
 from . import JS_SCRIPT_PATH, utils
-
-no_proxy_handler = urllib.request.ProxyHandler({})
-opener = urllib.request.build_opener(no_proxy_handler)
 
 
 class UnsupportedUrlError(Exception):
@@ -43,7 +39,9 @@ async def get_xbogus(url: str, headers: dict | None = None) -> str:
     if not headers or 'user-agent' not in (k.lower() for k in headers):
         headers = HEADERS
     query = urllib.parse.urlparse(url).query
-    xbogus = execjs.compile(open(f'{JS_SCRIPT_PATH}/x-bogus.js').read()).call(
+    with open(f'{JS_SCRIPT_PATH}/x-bogus.js', 'r', encoding='utf-8') as f:
+        script_content = f.read()
+    xbogus = execjs.compile(script_content).call(
         'sign', query, headers.get("User-Agent", "user-agent"))
     return xbogus
 

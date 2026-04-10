@@ -7,23 +7,13 @@ Function: Get kuaishou live stream data.
 """
 
 import os
-import traceback  # 导入此模块
+import traceback
 import asyncio
 from typing import Optional
 from playwright.async_api import async_playwright
-from .utils import trace_error_decorator
+from .utils import trace_error_decorator, logger
 from playwright_stealth import Stealth
 
-
-
-# # 在模块顶层建议维护一个全局 browser
-# _browser = None
-
-# async def get_browser(p):
-#     global _browser
-#     if _browser is None:
-#         _browser = await p.chromium.launch(headless=False)
-#     return _browser
 
 @trace_error_decorator
 async def get_kuaishou_stream_data(url: str, proxy_addr: Optional[str] = None, cookies: Optional[str] = None) -> dict:
@@ -69,7 +59,7 @@ async def get_kuaishou_stream_data(url: str, proxy_addr: Optional[str] = None, c
                             cookie_list.append({"name": k, "value": v, "domain": ".kuaishou.com", "path": "/"})
                     await context.add_cookies(cookie_list)
                 except Exception as e:
-                    print(f"Cookie 注入失败: {e}")
+                    logger.error(f"Cookie 注入失败: {e}")
 
 
             page = await context.new_page()
@@ -98,15 +88,15 @@ async def get_kuaishou_stream_data(url: str, proxy_addr: Optional[str] = None, c
             content = await page.content()
 
             if "请求过快" in content:
-                print(f"⚠️ 触发反爬虫提示！当前页面内容检测到：'请求过快'。")
+                logger.warning(f"触发反爬虫提示！当前页面内容检测到：'请求过快'。")
                 # headless 模式下无法暂停，等待后重试
                 await asyncio.sleep(3)
 
             if "captcha" in content or "验证码" in page.url or "拖动下方滑块" in content:
-                print("⚠️ 检测到验证码！headless 模式下无法自动处理验证码，请考虑：")
-                print("  1. 在本地运行（非 Docker）并手动过验证码")
-                print("  2. 更新 Cookie 以绕过验证")
-                print("  3. 降低检测频率避免触发反爬")
+                logger.warning("检测到验证码！headless 模式下无法自动处理验证码，请考虑："
+                               "1. 在本地运行（非 Docker）并手动过验证码；"
+                               "2. 更新 Cookie 以绕过验证；"
+                               "3. 降低检测频率避免触发反爬")
                 return result  # 直接返回，不继续处理
 
             # 方案 A: 检查 API 拦截到的数据
@@ -118,7 +108,7 @@ async def get_kuaishou_stream_data(url: str, proxy_addr: Optional[str] = None, c
                 source_data = await page.evaluate("() => window.__INITIAL_STATE__")
 
             if not source_data or not isinstance(source_data, dict):
-                print(f"无法定位数据源: {url}")
+                logger.error(f"无法定位数据源: {url}")
                 return result
 
             # 7. 统一解析字段
@@ -131,7 +121,7 @@ async def get_kuaishou_stream_data(url: str, proxy_addr: Optional[str] = None, c
             if not live_stream:
                 # 检查是否是因为被封禁导致没数据
                 if 'errorType' in source_data:
-                    print(f"访问受限或页面异常: {source_data.get('errorType')}")
+                    logger.warning(f"访问受限或页面异常: {source_data.get('errorType')}")
                 return result
 
             # 既然 live_stream 不为 None，现在可以安全地调用 .get()
@@ -157,11 +147,8 @@ async def get_kuaishou_stream_data(url: str, proxy_addr: Optional[str] = None, c
                     })
 
         except Exception as e:
-            # 关键：打印详细堆栈，这样你就能在日志里看到到底是哪一行报错
-            print(f"--- 详细错误日志开始 ---")
-            traceback.print_exc()
-            print(f"--- 详细错误日志结束 ---")
-            print(f"检测出错 [{url}]: {e}")
+            logger.error(f"检测出错 [{url}]: {e}")
+            logger.debug(f"详细错误日志:\n{traceback.format_exc()}")
         finally:
             await context.close()
             

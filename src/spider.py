@@ -8,9 +8,7 @@ Function: Get live stream data.
 
 import hashlib
 import random
-import subprocess
 import time
-import uuid
 from operator import itemgetter
 import urllib.parse
 from typing import List
@@ -19,9 +17,8 @@ import ssl
 import re
 import json
 import execjs
-from . import JS_SCRIPT_PATH, utils
-from .utils import trace_error_decorator, generate_random_string
-from .logger import script_path
+from . import utils
+from .utils import trace_error_decorator
 from .room import get_sec_user_id, get_unique_id, UnsupportedUrlError
 from .http_clients.async_http import async_req
 from .ab_sign import ab_sign
