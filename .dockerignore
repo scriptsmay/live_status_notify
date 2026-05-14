@@ -1,4 +1,4 @@
-.github/workflows/build-image.yml
+.github/workflows/docker-image.yml
 .git
 .gitignore
 .dockerignore
